@@ -14,10 +14,10 @@ return new class extends Migration
     Schema::create('fixed_schedules', function (Blueprint $table) {
         $table->id();
         $table->foreignId('room_id')->constrained('rooms')->onDelete('cascade');
-        $table->string('hari'); // Senin, Selasa, dll
-        $table->time('waktu_mulai');
-        $table->time('waktu_selesai');
-        $table->string('keterangan')->nullable();
+        $table->enum('day_of_week' , allowed: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
+        $table->time('start_time');
+        $table->time('end_time');
+        $table->string('description')->nullable();
         $table->timestamps();
     });
 }

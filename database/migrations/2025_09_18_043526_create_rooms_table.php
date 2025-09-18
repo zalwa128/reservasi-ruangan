@@ -14,7 +14,7 @@ return new class extends Migration
     Schema::create('rooms', function (Blueprint $table) {
         $table->id();
         $table->string('nama_ruangan');
-        $table->integer('kapasitas');
+        $table->integer('capacity');
         $table->text('deskripsi')->nullable();
         $table->enum('status', ['aktif', 'non-aktif'])->default('aktif');
         $table->timestamps();
