@@ -1,33 +1,34 @@
 <?php
 
-namespace App\Http\Controllers\Auth;
+namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Resources\Auth\LoginResource;
+use App\Services\Auth\LoginService;
+use Illuminate\support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 
-
 class LoginController extends Controller
 {
+
+
+    protected LoginService $loginService;
+
+    public function __construct(LoginService $loginService)
+    {
+        $this->loginService = $loginService;
+    }
+
     public function login(LoginRequest $request)
     {
-        $credentials = $request->validated();
+        $result = $this->loginService->attemptLogin($request->validated());
 
-        $user = User::where('email', $credentials['email'])->first();
-
-        if (! $user || ! Hash::check($credentials['password'], $user->password)) {
-            return response()->json([
-                'message' => 'Invalid credentials'
-            ], 401);
+        if (! $result) {
+            return response()->json(['message' => 'Email atau password salah.'], 401);
         }
-        $token = $user->createToken('API token')->accessToken;
 
-        return response()->json([
-            'Message' => 'Login Berhasil',
-            'data' => new LoginResource($user),
-            'token' => $token
-        ]);
+        return new LoginResource($result);
     }
 }
