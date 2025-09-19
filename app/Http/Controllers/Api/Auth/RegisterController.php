@@ -25,4 +25,4 @@ class RegisterController extends Controller
         // Optionally, you can return a response or token
         return new RegisterResource($result);
     }
-}
+} 

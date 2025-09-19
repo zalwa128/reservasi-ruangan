@@ -17,7 +17,7 @@ class RegisterService
 
     ]);
 
-
+    
     $token = $user->createToken('TokenLogin')->accessToken;
 
     return [
