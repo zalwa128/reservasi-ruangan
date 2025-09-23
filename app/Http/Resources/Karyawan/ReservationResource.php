@@ -12,8 +12,10 @@ class ReservationResource extends JsonResource
             'id'            => $this->id,
             'room'          => [
                 'id'   => $this->room->id,
-                'name' => $this->room->name,
+                'name' => $this->room->nama_ruangan,
             ],
+            'tanggal'       => $this->tanggal->format('Y-m-d'),
+            'day_of_week'          => $this->day_of_week,
             'start_time'   => $this->start_time,
             'end_time' => $this->end_time,
             'status'        => $this->status,

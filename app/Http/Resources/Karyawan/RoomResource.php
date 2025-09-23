@@ -15,8 +15,6 @@ class RoomResource extends JsonResource
             'capacity'   => $this->capacity,
             'deskripsi'   => $this->deskripsi,
             'status'      => $this->status,
-            'reservations'=> ReservationResource::collection($this->whenLoaded('reservations')),
-            'fixed_schedules' => FixedScheduleResource::collection($this->whenLoaded('fixedSchedules')),
         ];
     }
 }

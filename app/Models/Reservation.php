@@ -14,18 +14,17 @@ class Reservation extends Model
     protected $fillable = [
         'user_id',
         'room_id',
-        'tanggal',
-        'hari',
-        'start_time',
-        'end_time',
-        'reason',
+        'tanggal',         // simpan tanggal reservasi
+        'start_time',   // simpan sebagai string (format H:i)
+        'end_time',     // simpan sebagai string (format H:i)
         'status',
+        'reason',       // alasan reservasi
     ];
 
     protected $casts = [
         'tanggal'       => 'date:Y-m-d',
-        'start_time'   => 'string',
-        'end_time' => 'string',
+        'start_time' => 'string',
+        'end_time'   => 'string',
     ];
 
     public function user()

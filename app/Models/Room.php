@@ -14,7 +14,7 @@ class Room extends Model
         'nama_ruangan',
         'capacity',
         'deskripsi',
-        'status',
+        'status', // default di DB = "non-aktif"
     ];
 
     // Relasi ke Reservations

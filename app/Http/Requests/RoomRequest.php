@@ -15,9 +15,9 @@ class RoomRequest extends FormRequest
     {
         return [
             'nama_ruangan' => 'required|string|max:255',
-            'capacity' => 'nullable|integer',
-            'deskripsi' => 'nullable|string',
-            'status' => 'required|in:available,unavailable',
+            'capacity'    => 'nullable|integer|min:1',
+            'deskripsi'    => 'nullable|string',
+            'status'       => 'required|in:aktif,non-aktif', // default di DB = non-aktif
         ];
     }
 }

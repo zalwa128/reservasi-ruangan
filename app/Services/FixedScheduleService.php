@@ -4,22 +4,25 @@ namespace App\Services;
 
 use App\Models\FixedSchedule;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Auth;
 
 class FixedScheduleService
 {
     public function getAll()
     {
-        return FixedSchedule::with('room')->get();
+        return FixedSchedule::with(['room','user'])->get();
     }
 
     public function find($id)
     {
-        return FixedSchedule::with('room')->findOrFail($id);
+        return FixedSchedule::with(['room','user'])->findOrFail($id);
     }
 
     public function create(array $data)
     {
-        // Cek bentrok dengan jadwal tetap lain di hari & ruangan ini
+        $data['user_id'] = Auth::id();
+
+        // Cek konflik jadwal
         $conflict = FixedSchedule::where('room_id', $data['room_id'])
             ->where('day_of_week', $data['day_of_week'])
             ->where(function ($q) use ($data) {
@@ -45,7 +48,7 @@ class FixedScheduleService
     {
         $schedule = FixedSchedule::findOrFail($id);
 
-        // Cek bentrok
+        // Cek konflik jadwal saat update
         $conflict = FixedSchedule::where('room_id', $data['room_id'])
             ->where('day_of_week', $data['day_of_week'])
             ->where('id', '!=', $id)
@@ -61,7 +64,7 @@ class FixedScheduleService
 
         if ($conflict) {
             throw ValidationException::withMessages([
-                'schedule' => 'Perubahan bentrok sama jadwal lain pada ruangan ini.'
+                'schedule' => 'Perubahan bentrok dengan jadwal lain pada ruangan ini.'
             ]);
         }
 
