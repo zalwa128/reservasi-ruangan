@@ -1,89 +1,59 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\Reservation;
-use Illuminate\Support\Facades\Auth;
+use App\Http\Requests\ReservationRequest;
+use App\Http\Resources\ReservationResource;
+use App\Services\ReservationService;
 
 class ReservationController extends Controller
 {
+    protected $reservationService;
+
+    public function __construct(ReservationService $reservationService)
+    {
+        $this->reservationService = $reservationService;
+    }
+
     public function index()
     {
-        $user = Auth::user();
-        $reservations = $user->role === 'admin'
-            ? Reservation::with('room', 'user')->get()
-            : $user->reservations()->with('room')->get();
-
-        return response()->json($reservations);
+        return ReservationResource::collection($this->reservationService->getAll());
     }
 
-    public function store(Request $request)
+    public function store(ReservationRequest $request)
     {
-        $request->validate([
-            'room_id' => 'required|exists:rooms,id',
-            'start_time' => 'required|date',
-            'end_time' => 'required|date|after:start_time',
-            'reason' => 'nullable|string',
-        ]);
-
-        $reservation = Reservation::create([
-            'user_id' => Auth::id(),
-            'room_id' => $request->room_id,
-            'start_time' => $request->start_time,
-            'end_time' => $request->end_time,
-            'reason' => $request->notes,
-            'status' => 'pending',
-        ]);
-
-        return response()->json($reservation, 201);
+        $reservation = $this->reservationService->create($request->validated());
+        return new ReservationResource($reservation);
     }
 
-    public function show(Reservation $reservation)
+    public function show($id)
     {
-        $this->authorizeUser($reservation);
-        return response()->json($reservation->load('room', 'user'));
+        return new ReservationResource($this->reservationService->find($id));
     }
 
-    public function update(Request $request, Reservation $reservation)
+    public function update(ReservationRequest $request, $id)
     {
-        $this->authorizeUser($reservation);
-
-        $request->validate([
-            'start_time' => 'required|date',
-            'end_time' => 'required|date|after:start_time',
-            'reason' => 'nullable|string',
-        ]);
-
-        $reservation->update($request->only(['start_time', 'end_time', 'reason']));
-        return response()->json($reservation);
+        $reservation = $this->reservationService->update($id, $request->validated());
+        return new ReservationResource($reservation);
     }
 
-    public function destroy(Reservation $reservation)
+    public function destroy($id)
     {
-        $this->authorizeUser($reservation);
-        $reservation->update(['status' => 'cancelled']);
-        return response()->json(['message' => 'Reservation cancelled']);
+        $this->reservationService->delete($id);
+        return response()->json(['message' => 'Reservation deleted successfully']);
     }
 
-    public function approve(Reservation $reservation)
+        public function approve($id)
     {
-        $reservation->update(['status' => 'approved']);
-        return response()->json($reservation);
+        $reservation = $this->reservationService->approve($id);
+        return new ReservationResource($reservation);
     }
 
-    public function reject(Reservation $reservation)
+    public function reject($id)
     {
-        $reservation->update(['status' => 'rejected']);
-        return response()->json($reservation);
+        $reservation = $this->reservationService->reject($id);
+        return new ReservationResource($reservation);
     }
 
-    private function authorizeUser(Reservation $reservation)
-    {
-        $user = Auth::user();
-        if ($user->role !== 'admin' && $reservation->user_id !== $user->id) {
-            abort(403, 'Unauthorized');
-        }
-    }
 }

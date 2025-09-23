@@ -1,53 +1,46 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\FixedSchedule;
+use App\Http\Requests\FixedScheduleRequest;
+use App\Http\Resources\FixedScheduleResource;
+use App\Services\FixedScheduleService;
 
 class FixedScheduleController extends Controller
 {
+    protected $fixedScheduleService;
+
+    public function __construct(FixedScheduleService $fixedScheduleService)
+    {
+        $this->fixedScheduleService = $fixedScheduleService;
+    }
+
     public function index()
     {
-        return response()->json(FixedSchedule::with('room')->get());
+        return FixedScheduleResource::collection($this->fixedScheduleService->getAll());
     }
 
-    public function store(Request $request)
+    public function store(FixedScheduleRequest $request)
     {
-        $request->validate([
-            'room_id' => 'required|exists:rooms,id',
-            'day_of_week' => 'required|string',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
-            'description' => 'nullable|string',
-        ]);
-
-        $schedule = FixedSchedule::create($request->all());
-        return response()->json($schedule, 201);
+        $schedule = $this->fixedScheduleService->create($request->validated());
+        return new FixedScheduleResource($schedule);
     }
 
-    public function show(FixedSchedule $fixedSchedule)
+    public function show($id)
     {
-        return response()->json($fixedSchedule->load('room'));
+        return new FixedScheduleResource($this->fixedScheduleService->find($id));
     }
 
-    public function update(Request $request, FixedSchedule $fixedSchedule)
+    public function update(FixedScheduleRequest $request, $id)
     {
-        $request->validate([
-            'day_of_week' => 'required|string',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'required|date_format:H:i|after:start_time',
-            'description' => 'nullable|string',
-        ]);
-
-        $fixedSchedule->update($request->all());
-        return response()->json($fixedSchedule);
+        $schedule = $this->fixedScheduleService->update($id, $request->validated());
+        return new FixedScheduleResource($schedule);
     }
 
-    public function destroy(FixedSchedule $fixedSchedule)
+    public function destroy($id)
     {
-        $fixedSchedule->delete();
-        return response()->json(['message' => 'Fixed schedule deleted']);
+        $this->fixedScheduleService->delete($id);
+        return response()->json(['message' => 'FixedSchedule deleted successfully']);
     }
 }

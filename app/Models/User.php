@@ -32,9 +32,9 @@ class User extends Authenticatable implements OAuthenticatable
         ];
     }
 
-    //relasi ke Role
-    public function role()
+    //relasi ke reservation
+    public function reservations()
     {
-        return $this->belongsTo(Role::class);
+        return $this->hasMany(Reservation::class);
     }
 }

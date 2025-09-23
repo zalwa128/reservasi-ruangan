@@ -1,56 +1,79 @@
 <?php
 
-namespace App\Http\Controllers\API;
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\Rooms;
+use App\Http\Requests\RoomRequest;
+use App\Http\Resources\Admin\RoomResource as AdminRoomResource;
+use App\Http\Resources\Karyawan\RoomResource as KaryawanRoomResource;
+use App\Services\RoomService;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\ValidationException;
 
 class RoomController extends Controller
 {
+    protected $roomService;
+
+    public function __construct(RoomService $roomService)
+    {
+        $this->roomService = $roomService;
+    }
+
     public function index()
     {
-        return response()->json(Room::all());
+        $rooms = $this->roomService->getAll();
+
+        return Auth::user()->hasRole('admin')
+            ? AdminRoomResource::collection($rooms)
+            : KaryawanRoomResource::collection($rooms);
     }
 
-    public function store(Request $request)
+    public function show($id)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'capacity' => 'required|integer|min:1',
-            'deskripsi' => 'nullable|string',
-            'status' => 'required|boolean',
-        ]);
+        $room = $this->roomService->find($id);
 
-        $room = Room::create($request->all());
-        return response()->json($room, 201);
+        return Auth::user()->hasRole('admin')
+            ? new AdminRoomResource($room)
+            : new KaryawanRoomResource($room);
     }
 
-    public function show(Room $room)
+    public function store(RoomRequest $request)
     {
-        return response()->json($room);
-    }
-
-    public function update(Request $request, Room $room)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'capacity' => 'required|integer|min:1',
-            'deskripsi' => 'nullable|string',
-            'status' => 'required|boolean',
-        ]);
-
-        $room->update($request->all());
-        return response()->json($room);
-    }
-
-    public function destroy(Room $room)
-    {
-        if ($room->reservations()->whereIn('status', ['pending', 'approved'])->count() > 0) {
-            return response()->json(['error' => 'Room cannot be deleted because it has active reservations.'], 400);
+        if (!Auth::user()->hasRole('admin')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        $room->delete();
-        return response()->json(['message' => 'Room deleted successfully.']);
+        $room = $this->roomService->create($request->validated());
+        return new AdminRoomResource($room);
+    }
+
+    public function update(RoomRequest $request, $id)
+    {
+        if (!Auth::user()->hasRole('admin')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        $room = $this->roomService->update($id, $request->validated());
+        return new AdminRoomResource($room);
+    }
+
+    public function destroy($id)
+    {
+        if (!Auth::user()->hasRole('admin')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $this->roomService->delete($id);
+            return response()->json(['message' => 'Room deleted successfully']);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'errors' => $e->errors()
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
+            ], 400);
+        }
     }
 }
