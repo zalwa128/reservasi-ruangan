@@ -13,7 +13,7 @@ class ReservationService
     public function getAll()
     {
         return Reservation::with(['user', 'room'])
-            ->orderBy('date', 'desc')
+            ->orderBy('tanggal', 'desc')
             ->orderBy('start_time')
             ->get();
     }
@@ -55,7 +55,7 @@ class ReservationService
 
             // Cancel semua pending yang bentrok di tanggal yg sama
             $overlaps = Reservation::where('room_id', $reservation->room_id)
-                ->where('date', $reservation->date)   // filter tanggal
+                ->where('tanggal', $reservation->tanggal)   // filter tanggal
                 ->where('id', '!=', $reservation->id)
                 ->where('status', 'pending')
                 ->where(function ($q) use ($reservation) {

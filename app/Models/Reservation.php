@@ -15,6 +15,7 @@ class Reservation extends Model
         'user_id',
         'room_id',
         'tanggal',         // simpan tanggal reservasi
+        'day_of_week',
         'start_time',   // simpan sebagai string (format H:i)
         'end_time',     // simpan sebagai string (format H:i)
         'status',

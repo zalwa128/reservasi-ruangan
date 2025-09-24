@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Admin;
 
 use Illuminate\Http\Resources\Json\JsonResource;
+use Carbon\Carbon;
 
 class ReservationResource extends JsonResource
 {
@@ -17,14 +18,14 @@ class ReservationResource extends JsonResource
             ],
             'room'          => [
                 'id'   => $this->room->id,
-                'name' => $this->room->name,
+                'nama_ruangan' => $this->room->nama_ruangan,
             ],
-             'tanggal'          => $this->tanggal,
-             'day_of_week'          => $this->day_of_week,
-            'start_time'   => $this->start_time,
-            'end_time' => $this->end_time,
+            'tanggal'       => $this->tanggal,
+            'day_of_week'   => $this->day_of_week ?? Carbon::parse($this->tanggal)->format('l'),
+            'start_time'    => $this->start_time,
+            'end_time'      => $this->end_time,
             'status'        => $this->status,
-            'reason'    => $this->reason,
+            'reason'        => $this->reason ?? '-',
             'created_at'    => $this->created_at->toDateTimeString(),
             'updated_at'    => $this->updated_at->toDateTimeString(),
         ];

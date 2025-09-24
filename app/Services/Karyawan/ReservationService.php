@@ -14,7 +14,7 @@ class ReservationService
         $data['status'] = 'pending';
 
         // Parse tanggal & waktu
-        $date      = Carbon::parse($data['date'])->format('Y-m-d');
+        $date      = Carbon::parse($data['tanggal'])->format('Y-m-d');
         $startTime = Carbon::parse($date . ' ' . $data['start_time']);
         $endTime   = Carbon::parse($date . ' ' . $data['end_time']);
 
@@ -26,9 +26,12 @@ class ReservationService
         }
 
         // Simpan tanggal & waktu
-        $data['date']       = $date;
+        $data['tanggal']       = $date;
         $data['start_time'] = $startTime->format('H:i');
         $data['end_time']   = $endTime->format('H:i');
+
+        // Isi day_of_week otomatis (string nama hari)
+        $data['day_of_week'] = Carbon::parse($date)->format('l');
 
         //validasi bentrok dengan FixedSchedule
         $dayOfWeek = Carbon::parse($date)->dayOfWeek; // 0=Min, 1=Senin, dst

@@ -14,12 +14,12 @@ class ReservationStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'room_id'       => 'required|exists:rooms,id',
-            'tanggal'       => 'required|date|after_or_equal:today',
+            'room_id'     => 'required|exists:rooms,id',
+            'tanggal'     => 'required|date|after_or_equal:today',
             'day_of_week' => 'required|string|in:monday,tuesday,wednesday,thursday,friday,saturday,sunday',
-            'start_time'   => 'required|time_format:H:i',
-            'end_time' => 'required|time_format:H:i|after:waktu_mulai',
-            'reason'    => 'nullable|string|max:255',
+            'start_time'  => 'required|date_format:H:i',
+            'end_time'    => 'required|date_format:H:i|after:start_time',
+            'reason'      => 'nullable|string|max:255',
         ];
     }
 }

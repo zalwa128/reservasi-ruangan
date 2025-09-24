@@ -12,11 +12,7 @@ use App\Http\Controllers\Api\User\UserController;
 use App\Http\Controllers\Api\Admin\ReservationController as AdminReservationController;
 use App\Http\Controllers\Api\Karyawan\ReservationController as KaryawanReservationController;
 
-/**
- * ===============================
- * AUTH ROUTES (Public)
- * ===============================
- */
+
 Route::post('/login', [LoginController::class, 'login'])->name('auth.login');
 Route::post('/register', [RegisterController::class, 'register'])->name('auth.register');
 
@@ -26,11 +22,7 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/profile', [ProfileController::class, 'updateProfile'])->name('profile.update');
     Route::post('/logout', [LogoutController::class, 'logout'])->name('logout');
 
-    /**
-     * ===============================
-     * ADMIN ROUTES
-     * ===============================
-     */
+
     Route::middleware('role:admin')->prefix('admin')->group(function () {
         // Rooms Management (Admin full CRUD)
         Route::apiResource('rooms', RoomController::class);
@@ -48,11 +40,7 @@ Route::middleware('auth:api')->group(function () {
         Route::delete('reservations/{id}', [AdminReservationController::class, 'destroy'])->name('admin.reservations.destroy');
     });
 
-    /**
-     * ===============================
-     * KARYAWAN ROUTES
-     * ===============================
-     */
+
     Route::middleware('role:karyawan')->prefix('karyawan')->group(function () {
         // Rooms (Karyawan cuma bisa lihat)
         Route::get('rooms', [RoomController::class, 'index'])->name('karyawan.rooms.index');
