@@ -96,7 +96,7 @@ class ReservationController extends Controller
             'start_time' => $request->start_time,
             'end_time'   => $request->end_time,
             'status'     => 'pending',
-            'reason'     => null,
+            'reason'     => $request->reason,
         ]);
 
         return new KaryawanReservationResource($reservation);
@@ -123,6 +123,47 @@ class ReservationController extends Controller
 
         return new AdminReservationResource($reservation);
     }
+
+    /**
+ * PUT /reservations/{id}/approve
+ * Hanya Admin
+ */
+public function approve($id)
+{
+    $user = Auth::user();
+
+    if (! $user->hasRole('admin')) {
+        abort(403, 'Hanya admin yang bisa menyetujui reservasi.');
+    }
+
+    $reservation = $this->adminService->updateStatus($id, [
+        'status' => 'approved',
+        'reason' => null,
+    ]);
+
+    return new AdminReservationResource($reservation);
+}
+
+/**
+ * PUT /reservations/{id}/rejected
+ * Hanya Admin
+ */
+public function reject($id)
+{
+    $user = Auth::user();
+
+    if (! $user->hasRole('admin')) {
+        abort(403, 'Hanya admin yang bisa menolak reservasi.');
+    }
+
+    $reservation = $this->adminService->updateStatus($id, [
+        'status' => 'rejected',
+        'reason' => 'Ditolak oleh admin',
+    ]);
+
+    return new AdminReservationResource($reservation);
+}
+
 
     /**
      * DELETE /reservations/{id}

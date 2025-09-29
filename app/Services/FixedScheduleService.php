@@ -3,78 +3,74 @@
 namespace App\Services;
 
 use App\Models\FixedSchedule;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Auth;
+use App\Models\Reservation;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\ReservationRejectedByFixedScheduleMail;
 
 class FixedScheduleService
 {
     public function getAll()
     {
-        return FixedSchedule::with(['room','user'])->get();
-    }
-
-    public function find($id)
-    {
-        return FixedSchedule::with(['room','user'])->findOrFail($id);
+        return FixedSchedule::with(['room'])->latest()->get();
     }
 
     public function create(array $data)
     {
-        $data['user_id'] = Auth::id();
+        return DB::transaction(function () use ($data) {
+            // FixedSchedule dibuat tanpa user_id
+            $fixedSchedule = FixedSchedule::create($data);
 
-        // Cek konflik jadwal
-        $conflict = FixedSchedule::where('room_id', $data['room_id'])
-            ->where('day_of_week', $data['day_of_week'])
-            ->where(function ($q) use ($data) {
-                $q->whereBetween('start_time', [$data['start_time'], $data['end_time']])
-                  ->orWhereBetween('end_time', [$data['start_time'], $data['end_time']])
-                  ->orWhere(function ($q2) use ($data) {
-                      $q2->where('start_time', '<=', $data['start_time'])
-                         ->where('end_time', '>=', $data['end_time']);
-                  });
-            })
-            ->exists();
+            // Cari reservation bentrok
+            $this->handleConflicts($fixedSchedule);
 
-        if ($conflict) {
-            throw ValidationException::withMessages([
-                'schedule' => 'Jadwal tetap bentrok dengan jadwal lain pada ruangan ini.'
-            ]);
-        }
-
-        return FixedSchedule::create($data);
+            return $fixedSchedule;
+        });
     }
 
-    public function update($id, array $data)
+    public function update(FixedSchedule $fixedSchedule, array $data)
     {
-        $schedule = FixedSchedule::findOrFail($id);
+        return DB::transaction(function () use ($fixedSchedule, $data) {
+            $fixedSchedule->update($data);
 
-        // Cek konflik jadwal saat update
-        $conflict = FixedSchedule::where('room_id', $data['room_id'])
-            ->where('day_of_week', $data['day_of_week'])
-            ->where('id', '!=', $id)
-            ->where(function ($q) use ($data) {
-                $q->whereBetween('start_time', [$data['start_time'], $data['end_time']])
-                  ->orWhereBetween('end_time', [$data['start_time'], $data['end_time']])
-                  ->orWhere(function ($q2) use ($data) {
-                      $q2->where('start_time', '<=', $data['start_time'])
-                         ->where('end_time', '>=', $data['end_time']);
-                  });
-            })
-            ->exists();
+            // Cari reservation bentrok
+            $this->handleConflicts($fixedSchedule);
 
-        if ($conflict) {
-            throw ValidationException::withMessages([
-                'schedule' => 'Perubahan bentrok dengan jadwal lain pada ruangan ini.'
-            ]);
-        }
-
-        $schedule->update($data);
-        return $schedule;
+            return $fixedSchedule;
+        });
     }
 
-    public function delete($id)
+    public function delete(FixedSchedule $fixedSchedule)
     {
-        $schedule = FixedSchedule::findOrFail($id);
-        $schedule->delete();
+        return $fixedSchedule->delete();
+    }
+
+    private function handleConflicts(FixedSchedule $fixedSchedule)
+    {
+        $conflictReservations = Reservation::where('room_id', $fixedSchedule->room_id)
+            ->where('tanggal', $fixedSchedule->tanggal)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where(function ($q) use ($fixedSchedule) {
+                $q->whereBetween('start_time', [$fixedSchedule->start_time, $fixedSchedule->end_time])
+                  ->orWhereBetween('end_time', [$fixedSchedule->start_time, $fixedSchedule->end_time])
+                  ->orWhere(function ($q2) use ($fixedSchedule) {
+                      $q2->where('start_time', '<=', $fixedSchedule->start_time)
+                         ->where('end_time', '>=', $fixedSchedule->end_time);
+                  });
+            })
+            ->with('user')
+            ->get();
+
+        foreach ($conflictReservations as $reservation) {
+            $reservation->update([
+                'status' => 'rejected',
+                'reason' => 'Ditolak otomatis karena bentrok dengan Fixed Schedule.'
+            ]);
+
+            if ($reservation->user && $reservation->user->email) {
+                Mail::to($reservation->user->email)
+                    ->send(new ReservationRejectedByFixedScheduleMail($reservation));
+            }
+        }
     }
 }

@@ -13,10 +13,13 @@ class User extends Authenticatable implements OAuthenticatable
 {
     use HasApiTokens, HasFactory, Notifiable, HasRoles;
 
+    protected $guard_name = 'api';
+
     protected $fillable = [
         'name',
         'email',
         'password',
+        'role',
     ];
 
     protected $hidden = [

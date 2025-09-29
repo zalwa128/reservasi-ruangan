@@ -12,8 +12,8 @@ return new class extends Migration
             $table->string('day_of_week')->after('tanggal')->nullable();
 
             // Ubah waktu_mulai & waktu_selesai ke tipe time (biar konsisten)
-            $table->time('start_time')->change();
-            $table->time('end_time')->change();
+            $table->string('start_time', 5)->change();
+            $table->string('end_time', 5)->change();
         });
     }
 
@@ -22,8 +22,8 @@ return new class extends Migration
         Schema::table('reservations', function (Blueprint $table) {
             $table->dropColumn('day_of_week');
 
-            $table->string('start_time')->change();
-            $table->string('end_time')->change();
+            $table->time('start_time')->change();
+            $table->time('end_time')->change();
         });
     }
 };

@@ -13,8 +13,14 @@ class ReservationService
     {
         $data['status'] = 'pending';
 
-        // Parse tanggal & waktu
-        $date      = Carbon::parse($data['tanggal'])->format('Y-m-d');
+        // Ambil tanggal (fallback dari start_time kalau tidak ada 'tanggal')
+        if (!isset($data['tanggal']) || empty($data['tanggal'])) {
+            $date = Carbon::parse($data['start_time'])->format('Y-m-d');
+        } else {
+            $date = Carbon::parse($data['tanggal'])->format('Y-m-d');
+        }
+
+        // Gabungkan tanggal + jam
         $startTime = Carbon::parse($date . ' ' . $data['start_time']);
         $endTime   = Carbon::parse($date . ' ' . $data['end_time']);
 
@@ -25,19 +31,17 @@ class ReservationService
             ]);
         }
 
-        // Simpan tanggal & waktu
-        $data['tanggal']       = $date;
-        $data['start_time'] = $startTime->format('H:i');
+        // Simpan tanggal & waktu sebagai string H:i (sesuai varchar di DB)
+        $data['tanggal']    = $date;
+        $data['start_time'] = $startTime->format('H:i'); // hanya jam:menit
         $data['end_time']   = $endTime->format('H:i');
 
-        // Isi day_of_week otomatis (string nama hari)
-        $data['day_of_week'] = Carbon::parse($date)->format('l');
+        // Isi day_of_week otomatis (0=Min, 6=Sabtu)
+        $data['day_of_week'] = Carbon::parse($date)->dayOfWeek;
 
-        //validasi bentrok dengan FixedSchedule
-        $dayOfWeek = Carbon::parse($date)->dayOfWeek; // 0=Min, 1=Senin, dst
-
+        // 🔍 Validasi bentrok dengan FixedSchedule
         $conflictFixed = FixedSchedule::where('room_id', $data['room_id'])
-            ->where('day_of_week', $dayOfWeek) // pakai integer 0-6
+            ->where('day_of_week', $data['day_of_week'])
             ->where(function ($q) use ($startTime, $endTime) {
                 $q->whereBetween('start_time', [$startTime->format('H:i'), $endTime->format('H:i')])
                   ->orWhereBetween('end_time', [$startTime->format('H:i'), $endTime->format('H:i')])
@@ -54,7 +58,7 @@ class ReservationService
             ]);
         }
 
-        //validasi bentrok sm reservasi lain
+        // 🔍 Validasi bentrok dengan reservasi lain
         $conflictReservation = Reservation::overlapping(
             $data['room_id'], $startTime, $endTime
         )->exists();

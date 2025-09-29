@@ -13,11 +13,10 @@ class FixedSchedule extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id',
         'room_id',
-        'day_of_week',    // hari disimpan text: "Monday".."Sunday"
-        'start_time',     // simpan sebagai string (format H:i)
-        'end_time',       // simpan sebagai string (format H:i)
+        'day_of_week',    // hari disimpan text: "monday".."sunday"
+        'start_time',     // format H:i:s
+        'end_time',       // format H:i:s
         'description',
         'status',
     ];
@@ -27,36 +26,32 @@ class FixedSchedule extends Model
         'end_time'   => 'string',
     ];
 
-    // Relasi ke Room (jadwal tetap dimiliki oleh satu ruangan)
+    // Relasi ke Room
     public function room()
     {
         return $this->belongsTo(Room::class);
     }
 
-    public function reservations()
-    {
-        return $this->hasMany(Reservation::class);
-    }
-
+    // Relasi ke User (creator/admin)
     public function user()
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Scope untuk mencari overlapping reservation
-     */
-    public function scopeOverlapping($query, $roomId, $mulai, $selesai)
+    // Relasi reservation bentrok
+    public function overlappingReservations()
     {
-        return $query->where('room_id', $roomId)
-            ->whereIn('status', ['pending','approved'])
-            ->where(function ($q) use ($mulai, $selesai) {
-                $q->whereBetween('start_time', [$mulai, $selesai])
-                  ->orWhereBetween('end_time', [$mulai, $selesai])
-                  ->orWhere(function ($q2) use ($mulai, $selesai) {
-                      $q2->where('start_time', '<=', $mulai)
-                         ->where('end_time', '>=', $selesai);
+        return Reservation::where('room_id', $this->room_id)
+            ->where('day_of_week', $this->day_of_week)
+            ->whereIn('status', ['pending', 'approved'])
+            ->where(function ($q) {
+                $q->whereBetween('start_time', [$this->start_time, $this->end_time])
+                  ->orWhereBetween('end_time', [$this->start_time, $this->end_time])
+                  ->orWhere(function ($q2) {
+                      $q2->where('start_time', '<=', $this->start_time)
+                         ->where('end_time', '>=', $this->end_time);
                   });
-            });
+            })
+            ->get();
     }
 }

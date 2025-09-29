@@ -19,17 +19,13 @@ class RoomService
 
     public function create(array $data)
     {
-        // $data harus berisi: nama_ruangan, capacity, deskripsi, status
         return Room::create($data);
     }
 
     public function update($id, array $data)
     {
         $room = Room::findOrFail($id);
-
-        // update kolom: nama_ruangan, capacity, deskripsi, status
         $room->update($data);
-
         return $room;
     }
 
@@ -37,7 +33,7 @@ class RoomService
     {
         $room = Room::findOrFail($id);
 
-        // cek reservasi aktif 
+        // cek reservasi aktif (pending/approved)
         $activeReservation = $room->reservations()
             ->whereIn('status', ['pending', 'approved'])
             ->exists();

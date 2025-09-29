@@ -10,16 +10,16 @@ class RolePermissionSeeder extends Seeder
 {
     public function run()
     {
-        // bikin permission
-        Permission::create(['name' => 'manage reservations']);
-        Permission::create(['name' => 'view rooms']);
+        // bikin permission untuk guard api
+        Permission::firstOrCreate(['name' => 'manage reservations', 'guard_name' => 'api']);
+        Permission::firstOrCreate(['name' => 'view rooms', 'guard_name' => 'api']);
 
-        // role admin
-        $adminRole = Role::create(['name' => 'admin']);
+        // role admin untuk guard api
+        $adminRole = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'api']);
         $adminRole->givePermissionTo(['manage reservations', 'view rooms']);
 
-        // role karyawan
-        $karyawanRole = Role::create(['name' => 'karyawan']);
+        // role karyawan untuk guard api
+        $karyawanRole = Role::firstOrCreate(['name' => 'karyawan', 'guard_name' => 'api']);
         $karyawanRole->givePermissionTo(['view rooms']);
     }
 }
