@@ -31,37 +31,38 @@ class FixedScheduleController extends Controller
     public function store(FixedScheduleRequest $request)
     {
         if (!Auth::user()->hasRole('admin')) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message'=>'Unauthorized'],403);
         }
 
         $schedule = $this->service->create($request->validated());
         return new AdminResource($schedule);
     }
 
-    public function show(FixedSchedule $schedule)
-    {
-        return Auth::user()->hasRole('admin')
-            ? new AdminResource($schedule->load(['room']))
-            : new KaryawanResource($schedule->load(['room']));
-    }
+   public function show(FixedSchedule $schedule)
+{
+    return Auth::user()->hasRole('admin')
+        ? new AdminResource($schedule->load(['room','user']))
+        : new KaryawanResource($schedule->load(['room','user']));
+}
 
-    public function update(FixedScheduleRequest $request, FixedSchedule $schedule)
+
+    public function update(FixedScheduleRequest $request,$id)
     {
         if (!Auth::user()->hasRole('admin')) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message'=>'Unauthorized'],403);
         }
 
-        $schedule = $this->service->update($schedule, $request->validated());
+        $schedule = $this->service->update($id,$request->validated());
         return new AdminResource($schedule);
     }
 
-    public function destroy(FixedSchedule $schedule)
+    public function destroy($id)
     {
         if (!Auth::user()->hasRole('admin')) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+            return response()->json(['message'=>'Unauthorized'],403);
         }
 
-        $this->service->delete($schedule);
-        return response()->json(['message' => 'FixedSchedule deleted successfully']);
+        $this->service->delete($id);
+        return response()->json(['message'=>'FixedSchedule deleted successfully']);
     }
 }

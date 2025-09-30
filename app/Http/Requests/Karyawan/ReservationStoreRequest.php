@@ -18,7 +18,6 @@ class ReservationStoreRequest extends FormRequest
             'tanggal'       => 'required|date|after_or_equal:today',
             'start_time'   => 'required|date_format:H:i',
             'end_time' => 'required|date_format:H:i|after:start_time',
-            'reason' => 'required|string|max:255',
         ];
     }
 }

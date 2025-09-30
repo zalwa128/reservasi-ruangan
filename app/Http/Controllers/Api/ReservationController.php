@@ -92,11 +92,10 @@ class ReservationController extends Controller
         $reservation = $this->karyawanService->create([
             'user_id'    => $user->id,
             'room_id'    => $request->room_id,
-            'date'       => $request->date,
+            'tanggal'       => $request->tanggal,
+             'hari'          => Carbon::parse($request->tanggal)->locale('id')->dayName,
             'start_time' => $request->start_time,
             'end_time'   => $request->end_time,
-            'status'     => 'pending',
-            'reason'     => $request->reason,
         ]);
 
         return new KaryawanReservationResource($reservation);
@@ -138,7 +137,7 @@ public function approve($id)
 
     $reservation = $this->adminService->updateStatus($id, [
         'status' => 'approved',
-        'reason' => null,
+        'reason' => $request->reason ?? 'Disetujui oleh admin',
     ]);
 
     return new AdminReservationResource($reservation);
