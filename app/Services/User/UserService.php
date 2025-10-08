@@ -7,10 +7,38 @@ use Illuminate\Support\Facades\Hash;
 
 class UserService
 {
+    /**
+     * Ambil semua user (lama)
+     */
     public function getAll()
     {
-        // Ambil semua user dengan role-nya
         return User::with('roles')->get();
+    }
+
+    /**
+     * Ambil user dengan filter & pagination
+     */
+    public function getFiltered(array $filters)
+    {
+        $query = User::with('roles');
+
+        // Filter berdasarkan nama (like)
+        if (!empty($filters['name'])) {
+            $query->where('name', 'like', '%' . $filters['name'] . '%');
+        }
+
+        // Filter berdasarkan role
+        if (!empty($filters['role'])) {
+            $query->whereHas('roles', function ($q) use ($filters) {
+                $q->where('name', $filters['role']);
+            });
+        }
+
+        // Urutkan berdasarkan nama (default)
+        $query->orderBy('name', 'asc');
+
+        // Pagination
+        return $query->paginate($filters['per_page'] ?? 10);
     }
 
     public function find($id)
@@ -20,13 +48,10 @@ class UserService
 
     public function create(array $data)
     {
-        // Hash password
         $data['password'] = Hash::make($data['password']);
 
-        // Buat user baru
         $user = User::create($data);
 
-        // Assign role jika ada
         if (!empty($data['role'])) {
             $user->assignRole($data['role']);
         }
@@ -38,7 +63,6 @@ class UserService
     {
         $user = User::findOrFail($id);
 
-        // password baru → hash
         if (!empty($data['password'])) {
             $data['password'] = Hash::make($data['password']);
         } else {
@@ -47,7 +71,6 @@ class UserService
 
         $user->update($data);
 
-        // Kalau ada role → ganti role di Spatie
         if (!empty($data['role'])) {
             $user->syncRoles([$data['role']]);
         }

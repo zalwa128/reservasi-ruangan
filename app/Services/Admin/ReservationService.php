@@ -3,102 +3,44 @@
 namespace App\Services\Admin;
 
 use App\Models\Reservation;
-use Illuminate\Support\Facades\Mail;
-use App\Mail\ReservationApprovedMail;
-use App\Mail\ReservationRejectedMail;
-use App\Mail\ReservationCanceledByOverlapMail;
-use App\Services\Traits\ReservationCommonTrait;
-use Illuminate\Validation\ValidationException;
 
 class ReservationService
 {
-    use ReservationCommonTrait;
-
-public function getAll()
+    public function getAll(array $filters = [])
     {
-        return Reservation::with(['user', 'room'])
-            ->latest()
-            ->get(); // otomatis exclude soft deleted
-    }
+        $query = Reservation::with(['user', 'room'])->latest();
 
-    public function updateStatus($id, array $data)
-{
-    $reservation = Reservation::with(['user', 'room'])->findOrFail($id);
-
-    if (!in_array($data['status'], ['approved', 'rejected'])) {
-        throw ValidationException::withMessages([
-            'status' => 'Status reservasi tidak valid.'
-        ]);
-    }
-
-    $reservation->update([
-        'status' => $data['status'],
-        'reason' => $data['reason'], // ✅ wajib diisi
-    ]);
-
-    // ✅ Approved
-    if ($data['status'] === 'approved') {
-        if ($reservation->room) {
-            $reservation->room->update(['status' => 'aktif']);
+        // Filter tanggal
+        if (!empty($filters['tanggal'])) {
+            $query->whereDate('tanggal', $filters['tanggal']);
         }
 
-        if ($reservation->user && $reservation->user->email) {
-            Mail::to($reservation->user->email)
-                ->send(new ReservationApprovedMail($reservation, $data['reason']));
-        }
+        // Mapping hari Indonesia -> Inggris
+        $dayMap = [
+            'senin'  => 'monday',
+            'selasa' => 'tuesday',
+            'rabu'   => 'wednesday',
+            'kamis'  => 'thursday',
+            'jumat'  => 'friday',
+            'sabtu'  => 'saturday',
+            'minggu' => 'sunday',
+        ];
 
-        // Tolak semua pending lain yang bentrok
-        $overlaps = Reservation::where('room_id', $reservation->room_id)
-            ->where('hari', $reservation->hari)
-            ->where('id', '!=', $reservation->id)
-            ->where('status', 'pending')
-            ->where(function ($q) use ($reservation) {
-                $q->whereBetween('start_time', [$reservation->start_time, $reservation->end_time])
-                  ->orWhereBetween('end_time', [$reservation->start_time, $reservation->end_time])
-                  ->orWhere(function ($q2) use ($reservation) {
-                      $q2->where('start_time', '<=', $reservation->start_time)
-                         ->where('end_time', '>=', $reservation->end_time);
-                  });
-            })
-            ->get();
-
-        foreach ($overlaps as $overlap) {
-            $overlap->update([
-                'status' => 'rejected',
-                'reason' => 'Ditolak otomatis karena bentrok dengan reservasi lain yang sudah disetujui.'
-            ]);
-
-            if ($overlap->user && $overlap->user->email) {
-                Mail::to($overlap->user->email)
-                    ->send(new ReservationCanceledByOverlapMail($overlap, $reservation));
+        if (!empty($filters['day_of_week'])) {
+            $dayInput = strtolower($filters['day_of_week']);
+            if(isset($dayMap[$dayInput])){
+                $query->where('day_of_week', $dayMap[$dayInput]);
             }
         }
+
+        // Filter start_time & end_time
+        if (!empty($filters['start_time'])) {
+            $query->where('start_time', '>=', date('H:i:s', strtotime($filters['start_time'])));
+        }
+        if (!empty($filters['end_time'])) {
+            $query->where('end_time', '<=', date('H:i:s', strtotime($filters['end_time'])));
+        }
+
+        return $query; // jangan paginate di sini
     }
-
-    // ✅ Rejected
-    if ($data['status'] === 'rejected' && $reservation->user && $reservation->user->email) {
-        Mail::to($reservation->user->email)
-            ->send(new ReservationRejectedMail($reservation, $data['reason']));
-    }
-
-    return $reservation;
-}
-
-
-    public function delete($id)
-{
-    $reservation = Reservation::findOrFail($id);
-
-    // contoh: jangan hapus kalau status masih pending
-    if ($reservation->status === 'pending') {
-        throw ValidationException::withMessages([
-            'delete' => 'Reservasi pending tidak boleh langsung dihapus.'
-        ]);
-    }
-
-    $reservation->delete(); // ini soft delete
-    return true;
-}
-
-
 }

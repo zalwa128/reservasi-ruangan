@@ -7,9 +7,29 @@ use Illuminate\Validation\ValidationException;
 
 class RoomService
 {
-    public function getAll()
+    public function getAll(array $filters = [])
     {
-        return Room::with(['reservations', 'fixedSchedules'])->get();
+        $query = Room::with(['reservations', 'fixedSchedules']);
+
+        // Filter nama_ruangan
+        if (!empty($filters['nama_ruangan'])) {
+            $query->where('nama_ruangan', 'like', '%'.$filters['nama_ruangan'].'%');
+        }
+
+        // Filter capacity
+        if (!empty($filters['capacity'])) {
+            $query->where('capacity', '>=', $filters['capacity']);
+        }
+
+        // Filter status
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+
+        // Order sesuai kolom DB
+        $query->orderBy('nama_ruangan', 'asc');
+
+        return $query; // jangan get(), biar bisa paginate di controller
     }
 
     public function find($id)

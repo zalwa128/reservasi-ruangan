@@ -8,6 +8,7 @@ use App\Http\Resources\Admin\RoomResource as AdminRoomResource;
 use App\Http\Resources\Karyawan\RoomResource as KaryawanRoomResource;
 use App\Services\RoomService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class RoomController extends Controller
@@ -19,13 +20,36 @@ class RoomController extends Controller
         $this->roomService = $roomService;
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $rooms = $this->roomService->getAll();
+        $filters = [
+            'nama_ruangan' => $request->query('nama_ruangan'),
+            'capacity'     => $request->query('capacity'),
+            'status'       => $request->query('status'),
+        ];
+
+        $perPage = $request->query('per_page', 10);
+
+        $query = $this->roomService->getAll($filters);
+        $rooms = $query->paginate($perPage);
 
         return Auth::user()->hasRole('admin')
-            ? AdminRoomResource::collection($rooms)
-            : KaryawanRoomResource::collection($rooms);
+            ? AdminRoomResource::collection($rooms)->additional([
+                'meta' => [
+                    'current_page' => $rooms->currentPage(),
+                    'last_page'    => $rooms->lastPage(),
+                    'per_page'     => $rooms->perPage(),
+                    'total'        => $rooms->total(),
+                ]
+            ])
+            : KaryawanRoomResource::collection($rooms)->additional([
+                'meta' => [
+                    'current_page' => $rooms->currentPage(),
+                    'last_page'    => $rooms->lastPage(),
+                    'per_page'     => $rooms->perPage(),
+                    'total'        => $rooms->total(),
+                ]
+            ]);
     }
 
     public function show($id)
