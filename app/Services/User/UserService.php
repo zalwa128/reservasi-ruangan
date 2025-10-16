@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Hash;
 class UserService
 {
     /**
-     * Ambil semua user (lama)
+     * Ambil semua user (deprecated, bisa pakai getFiltered)
      */
     public function getAll()
     {
@@ -16,36 +16,47 @@ class UserService
     }
 
     /**
-     * Ambil user dengan filter & pagination
+     * Ambil user dengan filter + pagination
      */
     public function getFiltered(array $filters)
     {
         $query = User::with('roles');
 
-        // Filter berdasarkan nama (like)
+        // Filter nama
         if (!empty($filters['name'])) {
             $query->where('name', 'like', '%' . $filters['name'] . '%');
         }
 
-        // Filter berdasarkan role
+        // Filter role
         if (!empty($filters['role'])) {
             $query->whereHas('roles', function ($q) use ($filters) {
                 $q->where('name', $filters['role']);
             });
         }
 
-        // Urutkan berdasarkan nama (default)
-        $query->orderBy('name', 'asc');
+        // Urutkan nama
+        $query->orderBy('id', 'asc');
 
-        // Pagination
-        return $query->paginate($filters['per_page'] ?? 10);
+        // Pagination dengan page dan per_page
+        return $query->paginate(
+            $filters['per_page'] ?? 10,
+            ['*'],
+            'page',
+            $filters['page'] ?? 1
+        );
     }
 
+    /**
+     * Ambil detail user
+     */
     public function find($id)
     {
         return User::with('roles')->findOrFail($id);
     }
 
+    /**
+     * Buat user baru
+     */
     public function create(array $data)
     {
         $data['password'] = Hash::make($data['password']);
@@ -59,6 +70,9 @@ class UserService
         return $user->load('roles');
     }
 
+    /**
+     * Update user
+     */
     public function update($id, array $data)
     {
         $user = User::findOrFail($id);
@@ -78,6 +92,9 @@ class UserService
         return $user->load('roles');
     }
 
+    /**
+     * Hapus user
+     */
     public function delete($id)
     {
         $user = User::findOrFail($id);

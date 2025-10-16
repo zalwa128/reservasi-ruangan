@@ -7,58 +7,70 @@ use Illuminate\Validation\ValidationException;
 
 class RoomService
 {
+    /**
+     * Ambil semua ruangan dengan filter
+     */
     public function getAll(array $filters = [])
     {
-        $query = Room::with(['reservations', 'fixedSchedules']);
+        $query = Room::with(['reservations.user', 'fixedSchedules']);
 
-        // Filter nama_ruangan
         if (!empty($filters['nama_ruangan'])) {
-            $query->where('nama_ruangan', 'like', '%'.$filters['nama_ruangan'].'%');
+            $query->where('nama_ruangan', 'like', '%' . $filters['nama_ruangan'] . '%');
         }
 
-        // Filter capacity
         if (!empty($filters['capacity'])) {
-            $query->where('capacity', '>=', $filters['capacity']);
+            $query->where('capacity', $filters['capacity']);
         }
 
-        // Filter status
         if (!empty($filters['status'])) {
             $query->where('status', $filters['status']);
         }
 
-        // Order sesuai kolom DB
-        $query->orderBy('nama_ruangan', 'asc');
+        $query->orderBy('id', 'asc');
 
-        return $query; // jangan get(), biar bisa paginate di controller
+        return $query; // return query, jangan get(), biar bisa paginate
     }
 
+    /**
+     * Cari ruangan berdasarkan ID
+     */
     public function find($id)
     {
-        return Room::with(['reservations.user', 'fixedSchedules'])->findOrFail($id);
+        return Room::with(['reservations.user', 'fixedSchedules'])->find($id); // find() bukan findOrFail
     }
 
+    /**
+     * Buat ruangan baru
+     */
     public function create(array $data)
     {
         return Room::create($data);
     }
 
+    /**
+     * Update ruangan
+     */
     public function update($id, array $data)
     {
-        $room = Room::findOrFail($id);
+        $room = Room::find($id);
+        if (!$room) return null;
+
         $room->update($data);
         return $room;
     }
 
+    /**
+     * Hapus ruangan
+     */
     public function delete($id)
     {
-        $room = Room::findOrFail($id);
+        $room = Room::find($id);
+        if (!$room) return null;
 
-        // cek reservasi aktif (pending/approved)
         $activeReservation = $room->reservations()
             ->whereIn('status', ['pending', 'approved'])
             ->exists();
 
-        // cek fixed schedule aktif
         $hasFixedSchedule = $room->fixedSchedules()->exists();
 
         if ($activeReservation || $hasFixedSchedule) {

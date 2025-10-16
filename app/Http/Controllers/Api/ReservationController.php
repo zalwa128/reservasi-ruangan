@@ -6,13 +6,13 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
+use Carbon\Carbon;
 
 // Services
 use App\Services\Admin\ReservationService as AdminReservationService;
 use App\Services\Karyawan\ReservationService as KaryawanReservationService;
 
 // Requests
-use App\Http\Requests\Admin\ReservationUpdateRequest;
 use App\Http\Requests\Karyawan\ReservationStoreRequest;
 use App\Http\Requests\Karyawan\ReservationCancelRequest;
 
@@ -32,179 +32,195 @@ class ReservationController extends Controller
         AdminReservationService $adminService,
         KaryawanReservationService $karyawanService
     ) {
-        $this->adminService = $adminService;
+        $this->adminService    = $adminService;
         $this->karyawanService = $karyawanService;
     }
 
-public function index(Request $request)
+    /* ----------------------------- GET /reservations ----------------------------- */
+    public function index(Request $request)
 {
     $user = Auth::user();
+    if (!$user) return $this->responseError('Token tidak valid.', 401);
 
     $filters = [
-        'tanggal'     => $request->query('tanggal'),
-        'day_of_week' => $request->query('day_of_week'),
-        'start_time'  => $request->query('start_time'),
-        'end_time'    => $request->query('end_time'),
+        'tanggal'    => $request->query('tanggal', null),
+        'day_of_week'=> $request->query('day_of_week', null),
+        'start_time' => $request->query('start_time', null),
+        'end_time'   => $request->query('end_time', null),
+        'status'     => $request->query('status', null),
+        'per_page'   => $request->query('per_page', 10),
     ];
 
-    $perPage = $request->query('per_page', 10);
+    $page = (int) max(1, $request->query('page', 1));
+    $perPage = min(10, max(1, (int)$request->query('per_page', 10)));
 
-    if ($user->hasRole('admin')) {
-        $query = $this->adminService->getAll($filters);
-        $reservations = $query->paginate($perPage);
-
-        return AdminReservationResource::collection($reservations)
-            ->additional([
-                'meta' => [
-                    'current_page' => $reservations->currentPage(),
-                    'last_page'    => $reservations->lastPage(),
-                    'per_page'     => $reservations->perPage(),
-                    'total'        => $reservations->total(),
-                ]
-            ]);
+    // validasi waktu
+    $timeRegex = '/^([01]\d|2[0-3]):[0-5]\d$/';
+    if (!empty($filters['start_time']) && !preg_match($timeRegex, $filters['start_time'])) {
+        return $this->responseError('Start time tidak valid. Format HH:MM.', 400);
+    }
+    if (!empty($filters['end_time']) && !preg_match($timeRegex, $filters['end_time'])) {
+        return $this->responseError('End time tidak valid. Format HH:MM.', 400);
+    }
+    if (!empty($filters['start_time']) && empty($filters['end_time'])) {
+        return $this->responseError('End time harus diisi jika start time diisi.', 400);
     }
 
-    if ($user->hasRole('karyawan')) {
-        $query = $this->karyawanService->getUserReservations($user->id, $filters);
-        $reservations = $query->paginate($perPage);
+    try {
+        $query = $user->hasRole('admin')
+            ? $this->adminService->getAll($filters)
+            : $this->karyawanService->getAll($user->id, $filters);
 
-        return KaryawanReservationResource::collection($reservations)
-            ->additional([
-                'meta' => [
-                    'current_page' => $reservations->currentPage(),
-                    'last_page'    => $reservations->lastPage(),
-                    'per_page'     => $reservations->perPage(),
-                    'total'        => $reservations->total(),
-                ]
-            ]);
+        $reservations = $query->paginate($perPage, ['*'], 'page', $page)->appends($request->query());
+
+        if ($reservations->isEmpty()) {
+            return $this->responseSuccess('Data tidak ditemukan.', null);
+        }
+
+        $resource = $user->hasRole('admin')
+            ? AdminReservationResource::collection($reservations)
+            : KaryawanReservationResource::collection($reservations);
+
+        // tambahkan meta pagination
+        $meta = [
+            'current_page' => $reservations->currentPage(),
+            'last_page'    => $reservations->lastPage(),
+            'per_page'     => $reservations->perPage(),
+            'total'        => $reservations->total(),
+        ];
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Data reservasi berhasil diambil.',
+            'data'    => $resource,
+            'meta'    => $meta,
+        ], 200);
+    } catch (\Throwable $th) {
+        return $this->responseError('Terjadi kesalahan server: ' . $th->getMessage(), 500);
     }
-
-    abort(403, 'Anda tidak punya akses.');
 }
 
-    // Detail reservasi
+    /* ----------------------------- GET /reservations/{id} ----------------------------- */
     public function show($id)
     {
         $user = Auth::user();
+        try {
+            if ($user->hasRole('admin')) {
+                $reservation = $this->adminService->getById($id);
+                return $this->responseSuccess('Detail reservasi berhasil diambil.', new AdminReservationResource($reservation));
+            }
 
-        if ($user->hasRole('admin')) {
-            $reservation = $this->adminService->getById($id);
-            return new AdminReservationResource($reservation);
+            if ($user->hasRole('karyawan')) {
+                $reservation = $this->karyawanService->getById($id);
+                return $this->responseSuccess('Detail reservasi berhasil diambil.', new KaryawanReservationResource($reservation));
+            }
+
+            return $this->responseError('Anda tidak memiliki akses.', 403);
+        } catch (\Throwable $th) {
+            return $this->responseError('Data tidak ditemukan: ' . $th->getMessage(), 404);
         }
-
-        if ($user->hasRole('karyawan')) {
-            $reservation = $this->karyawanService->getUserReservationById($user->id, $id);
-            return new KaryawanReservationResource($reservation);
-        }
-
-        abort(403, 'Anda tidak punya akses.');
     }
 
-    // Buat reservasi (karyawan)
+    /* ----------------------------- POST /karyawan/reservations ----------------------------- */
     public function store(ReservationStoreRequest $request)
     {
         $user = Auth::user();
-
-        if (! $user->hasRole('karyawan')) {
-            abort(403, 'Hanya karyawan yang bisa membuat reservasi.');
+        if (!$user->hasRole('karyawan')) {
+            return $this->responseError('Hanya karyawan yang bisa membuat reservasi.', 403);
         }
 
-        $reservation = $this->karyawanService->create([
-            'user_id'    => $user->id,
-            'tanggal'    => $request->tanggal,
-            'start_time' => $request->start_time,
-            'end_time'   => $request->end_time,
-        ]);
+        try {
+            $reservation = $this->karyawanService->create([
+                'user_id'      => $user->id,
+                'room_id'      => $request->room_id,
+                'tanggal'      => $request->tanggal,
+                'day_of_week'  => strtolower(Carbon::parse($request->tanggal)->locale('id')->dayName),
+                'start_time'   => $request->start_time,
+                'end_time'     => $request->end_time,
+                'reason'       => $request->reason ?? '-',
+            ]);
 
-        return new KaryawanReservationResource($reservation);
+            return $this->responseSuccess('Reservasi berhasil dibuat.', new KaryawanReservationResource($reservation));
+        } catch (\Throwable $th) {
+            return $this->responseError('Gagal membuat reservasi: ' . $th->getMessage(), 500);
+        }
     }
 
-    // Update status reservasi (admin)
-    public function update(ReservationUpdateRequest $request, $id)
+    /* ----------------------------- PUT /admin/reservations/{id}/approve ----------------------------- */
+    public function approve($id)
     {
         $user = Auth::user();
+        if (!$user->hasRole('admin')) return $this->responseError('Hanya admin yang bisa approve.', 403);
 
-        if (! $user->hasRole('admin')) {
-            abort(403, 'Hanya admin yang bisa mengubah reservasi.');
+        try {
+            $reservation = $this->adminService->approve($id);
+            return $this->responseSuccess('Reservasi disetujui.', new AdminReservationResource($reservation));
+        } catch (\Throwable $th) {
+            return $this->responseError('Gagal approve reservasi: ' . $th->getMessage(), 500);
         }
-
-        $data = $request->validated();
-
-        $reservation = $this->adminService->updateStatus($id, [
-            'status' => $data['status'],
-            'reason' => $data['reason'] ?? null,
-        ]);
-
-        return new AdminReservationResource($reservation);
     }
 
-    // Approve reservasi (admin)
-    public function approve(Request $request, $id)
+    /* ----------------------------- PUT /admin/reservations/{id}/reject ----------------------------- */
+    public function reject(Request $request, $id)
     {
         $user = Auth::user();
+        if (!$user->hasRole('admin')) return $this->responseError('Hanya admin yang bisa reject.', 403);
 
-        if (! $user->hasRole('admin')) {
-            abort(403, 'Hanya admin yang bisa menyetujui reservasi.');
+        $reason = $request->input('reason', 'Ditolak oleh admin');
+
+        try {
+            $reservation = $this->adminService->reject($id, $reason);
+            return $this->responseSuccess('Reservasi ditolak.', new AdminReservationResource($reservation));
+        } catch (\Throwable $th) {
+            return $this->responseError('Gagal reject reservasi: ' . $th->getMessage(), 500);
         }
-
-        $reservation = $this->adminService->updateStatus($id, [
-            'status' => 'approved',
-            'reason' => $request->reason ?? 'Disetujui oleh admin',
-        ]);
-
-        return new AdminReservationResource($reservation);
     }
 
-    // Reject reservasi (admin)
-    public function reject($id)
-    {
-        $user = Auth::user();
-
-        if (! $user->hasRole('admin')) {
-            abort(403, 'Hanya admin yang bisa menolak reservasi.');
-        }
-
-        $reservation = $this->adminService->updateStatus($id, [
-            'status' => 'rejected',
-            'reason' => 'Ditolak oleh admin',
-        ]);
-
-        return new AdminReservationResource($reservation);
-    }
-
-    // Hapus reservasi (admin)
-    public function destroy($id)
-    {
-        $user = Auth::user();
-
-        if (! $user->hasRole('admin')) {
-            abort(403, 'Hanya admin yang bisa menghapus reservasi.');
-        }
-
-        $this->adminService->delete($id);
-
-        return response()->json([
-            'message' => 'Reservasi berhasil dihapus.',
-        ]);
-    }
-
-    // Cancel reservasi (karyawan)
+    /* ----------------------------- PUT /karyawan/reservations/{id}/cancel ----------------------------- */
     public function cancel(ReservationCancelRequest $request, $id)
     {
         $user = Auth::user();
+        if (!$user->hasRole('karyawan')) return $this->responseError('Hanya karyawan yang bisa membatalkan reservasi.', 403);
 
-        if (! $user->hasRole('karyawan')) {
-            abort(403, 'Hanya karyawan yang bisa membatalkan reservasi.');
+        try {
+            $reservation = $this->karyawanService->cancel(
+                $id,
+                $user->id,
+                $request->validated()['reason'] ?? 'Dibatalkan oleh pengguna'
+            );
+
+            Mail::to("admin@reservasi.com")->send(new ReservationCanceledByUserMail($reservation));
+
+            return $this->responseSuccess('Reservasi berhasil dibatalkan.', new KaryawanReservationResource($reservation));
+        } catch (\Throwable $th) {
+            return $this->responseError('Gagal membatalkan reservasi: ' . $th->getMessage(), 500);
         }
+    }
 
-        $reservation = $this->karyawanService->cancel(
-            $id,
-            $user->id,
-            $request->validated()['reason'] ?? null
-        );
+    /* ----------------------------- DELETE /admin/reservations/{id} ----------------------------- */
+    public function destroy($id)
+    {
+        $user = Auth::user();
+        if (!$user->hasRole('admin')) return $this->responseError('Hanya admin yang bisa menghapus reservasi.', 403);
 
-        Mail::to('admin@reservasi.com')->send(new ReservationCanceledByUserMail($reservation));
+        try {
+            $this->adminService->delete($id);
+            return $this->responseSuccess('Reservasi berhasil dihapus.');
+        } catch (\Throwable $th) {
+            return $this->responseError('Gagal menghapus reservasi: ' . $th->getMessage(), 500);
+        }
+    }
 
-        return new KaryawanReservationResource($reservation);
+    /* ----------------------------- Helper ----------------------------- */
+    private function responseSuccess(string $message, $data = null, int $statusCode = 200)
+    {
+        $response = ['status' => 'success', 'message' => $message];
+        if (!is_null($data)) $response['data'] = $data;
+        return response()->json($response, $statusCode);
+    }
+
+    private function responseError(string $message, int $statusCode = 400)
+    {
+        return response()->json(['status' => 'error', 'message' => $message], $statusCode);
     }
 }

@@ -8,39 +8,39 @@ class ReservationService
 {
     public function getAll(array $filters = [])
     {
-        $query = Reservation::with(['user', 'room'])->latest();
+        $query = Reservation::with(['user', 'room'])->whereNull('deleted_at');
 
-        // Filter tanggal
-        if (!empty($filters['tanggal'])) {
-            $query->whereDate('tanggal', $filters['tanggal']);
-        }
+        if (!empty($filters['status'])) $query->where('status', $filters['status']);
+        if (!empty($filters['tanggal'])) $query->whereDate('tanggal', $filters['tanggal']);
+        if (!empty($filters['day_of_week'])) $query->where('day_of_week', strtolower($filters['day_of_week']));
+        if (!empty($filters['start_time'])) $query->whereTime('start_time', '>=', $filters['start_time']);
+        if (!empty($filters['end_time'])) $query->whereTime('end_time', '<=', $filters['end_time']);
 
-        // Mapping hari Indonesia -> Inggris
-        $dayMap = [
-            'senin'  => 'monday',
-            'selasa' => 'tuesday',
-            'rabu'   => 'wednesday',
-            'kamis'  => 'thursday',
-            'jumat'  => 'friday',
-            'sabtu'  => 'saturday',
-            'minggu' => 'sunday',
-        ];
+        return $query->orderBy('id', 'asc');
+    }
 
-        if (!empty($filters['day_of_week'])) {
-            $dayInput = strtolower($filters['day_of_week']);
-            if(isset($dayMap[$dayInput])){
-                $query->where('day_of_week', $dayMap[$dayInput]);
-            }
-        }
+    public function getById($id)
+    {
+        return Reservation::with(['user', 'room'])->whereNull('deleted_at')->findOrFail($id);
+    }
 
-        // Filter start_time & end_time
-        if (!empty($filters['start_time'])) {
-            $query->where('start_time', '>=', date('H:i:s', strtotime($filters['start_time'])));
-        }
-        if (!empty($filters['end_time'])) {
-            $query->where('end_time', '<=', date('H:i:s', strtotime($filters['end_time'])));
-        }
+    public function approve($id)
+    {
+        $reservation = $this->getById($id);
+        $reservation->update(['status' => 'approved', 'admin_notified_at' => now()]);
+        return $reservation;
+    }
 
-        return $query; // jangan paginate di sini
+    public function reject($id, $reason)
+    {
+        $reservation = $this->getById($id);
+        $reservation->update(['status' => 'rejected', 'reason' => $reason, 'admin_notified_at' => now()]);
+        return $reservation;
+    }
+
+    public function delete($id)
+    {
+        $reservation = $this->getById($id);
+        $reservation->delete();
     }
 }
