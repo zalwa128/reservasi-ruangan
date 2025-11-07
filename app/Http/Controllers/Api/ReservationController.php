@@ -26,6 +26,11 @@ use App\Mail\ReservationCanceledByUserMail;
 // Models
 use App\Models\ReservationLog;
 
+// PhpSpreadsheet
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+
 class ReservationController extends Controller
 {
     protected $adminService;
@@ -237,6 +242,69 @@ class ReservationController extends Controller
             return $this->responseSuccess('Riwayat reservasi berhasil diambil.', $logs);
         } catch (\Throwable $th) {
             return $this->responseError('Gagal mengambil log: ' . $th->getMessage(), 500);
+        }
+    }
+
+    /* ----------------------------- EXPORT /reservations/export ----------------------------- */
+    public function export(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user->hasRole('admin')) {
+            return $this->responseError('Hanya admin yang bisa export data.', 403);
+        }
+
+        $filters = [
+            'tanggal'    => $request->query('tanggal', null),
+            'day_of_week'=> $request->query('day_of_week', null),
+            'start_time' => $request->query('start_time', null),
+            'end_time'   => $request->query('end_time', null),
+            'status'     => $request->query('status', null),
+        ];
+
+        try {
+            // Ambil semua data (tanpa pagination)
+            $reservations = $this->adminService->getAll($filters)->get();
+
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('Daftar Reservasi');
+
+            // Header
+            $sheet->fromArray([
+                ['ID', 'User', 'Room', 'Tanggal', 'Hari', 'Start Time', 'End Time', 'Alasan', 'Status']
+            ], null, 'A1');
+
+            // Data
+            $row = 2;
+            foreach ($reservations as $res) {
+                $sheet->setCellValue("A{$row}", $res->id);
+                $sheet->setCellValue("B{$row}", $res->user->name ?? '-');
+                $sheet->setCellValue("C{$row}", $res->room->name ?? '-');
+                $sheet->setCellValue("D{$row}", $res->tanggal->format('Y-m-d'));
+                $sheet->setCellValue("E{$row}", $res->day_of_week);
+                $sheet->setCellValue("F{$row}", $res->start_time);
+                $sheet->setCellValue("G{$row}", $res->end_time);
+                $sheet->setCellValue("H{$row}", $res->reason);
+                $sheet->setCellValue("I{$row}", $res->status);
+                $row++;
+            }
+
+            $writer = new Xlsx($spreadsheet);
+
+            $response = new StreamedResponse(function() use ($writer) {
+                $writer->save('php://output');
+            });
+
+            $fileName = 'daftar_reservasi_' . date('Ymd_His') . '.xlsx';
+
+            $response->headers->set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            $response->headers->set('Content-Disposition', "attachment;filename=\"{$fileName}\"");
+            $response->headers->set('Cache-Control', 'max-age=0');
+
+            return $response;
+
+        } catch (\Throwable $th) {
+            return $this->responseError('Gagal export reservasi: ' . $th->getMessage(), 500);
         }
     }
 

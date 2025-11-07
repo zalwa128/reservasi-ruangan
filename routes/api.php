@@ -11,7 +11,6 @@ use App\Http\Controllers\Api\User\UserController;
 use App\Http\Controllers\Api\ReservationController;
 use App\Http\Controllers\Api\ReservationLogController;
 
-
 /**
  * ===============================
  * AUTH ROUTES (Public)
@@ -80,6 +79,17 @@ Route::middleware('auth:api')->group(function () {
         Route::put('reservations/{id}/approve', [ReservationController::class, 'approve'])->name('reservations.approve');
         Route::put('reservations/{id}/reject', [ReservationController::class, 'reject'])->name('reservations.reject');
         Route::delete('reservations/{id}', [ReservationController::class, 'destroy'])->name('reservations.delete');
+
+        // ===============================
+        // Export Reservations (Excel)
+        // ===============================
+        Route::get('reservations/export', [ReservationController::class, 'export'])->name('reservations.export');
+
+        // ===============================
+        // Dashboard Statistik ✅ (Tambahan)
+        // ===============================
+        Route::get('dashboard/counts', [\App\Http\Controllers\Api\Admin\DashboardController::class, 'counts']);
+        Route::get('dashboard/statistik-bulanan', [\App\Http\Controllers\Api\Admin\DashboardController::class, 'statistikBulanan']);
     });
 
     /**
@@ -94,10 +104,10 @@ Route::middleware('auth:api')->group(function () {
     });
 });
 
-// RESERVATION LOG 
-    Route::middleware(['auth:api', 'role:admin|karyawan'])->group(function () {
-        Route::prefix('reservations')->group(function () {
-            Route::get('{id}/logs', [ReservationLogController::class, 'index']);
-            Route::get('logs/{id}', [ReservationLogController::class, 'show']);
-        });
+// RESERVATION LOG
+Route::middleware(['auth:api', 'role:admin|karyawan'])->group(function () {
+    Route::prefix('reservations')->group(function () {
+        Route::get('{id}/logs', [ReservationLogController::class, 'index']);
+        Route::get('logs/{id}', [ReservationLogController::class, 'show']);
     });
+});
